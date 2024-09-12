@@ -2,6 +2,7 @@ import json
 import logging
 import socket
 import threading
+import signal
 
 # Consts
 BUFFER_SIZE = 2048
@@ -23,7 +24,8 @@ GRAY = "§7"
 DARKGRAY = "§8"
 BLACK = "§0"
 
-""" Json Formatting
+# Json Formatting
+"""
 {
     "action": (connect/disconnect/message)
 
@@ -68,8 +70,8 @@ class AobaChatServer(socket.socket):
         logging.info("Waiting for incoming client connections...")
         try:
             self.accept_clients()
-        except KeyboardInterrupt as interupt:
-            logging.info("Received interupt")
+        except KeyboardInterrupt as interrupt:
+            logging.info("Received interrupt")
         except Exception as ex:
             logging.error(repr(ex))
         finally:
@@ -84,7 +86,6 @@ class AobaChatServer(socket.socket):
                 (client_socket, _) = self.accept()
 
                 # Get the registration from the client socket.
-
                 registration = client_socket.recv(BUFFER_SIZE).decode()
                 if registration == '' or len(registration) == 0:
                     continue
@@ -102,7 +103,7 @@ class AobaChatServer(socket.socket):
                             logging.info("Connection to client established, waiting to receive messages from user '" + name + "'...")
 
                             #Receiving data from client
-                            newThread = threading.Thread(target = self.recieve, args=(client_socket,)) 
+                            newThread = threading.Thread(target = self.receive, args=(client_socket,)) 
                             newThread.start()
                         else:
                             client_socket.send(encode(json.dumps({ 'user': 'SERVER','message' : "400 Invalid registration"}, ensure_ascii=False)))
@@ -111,7 +112,7 @@ class AobaChatServer(socket.socket):
             except Exception as ex:
                 logging.error("Ignoring bad request.")
 
-    def recieve(self, client):
+    def receive(self, client):
         user = self.client_names[client]
 
         while 1:
@@ -143,7 +144,7 @@ class AobaChatServer(socket.socket):
         if user is not None:
             logging.info("Disconnecting " + user + " from the server.")
             self.client_sockets.remove(client)
-            self.client_names.pop(user, 0)
+            self.client_names.pop(client, 0)
             client.close()
 
     def broadcast(self, user, message):
@@ -154,6 +155,7 @@ class AobaChatServer(socket.socket):
 
 def main():
     server = AobaChatServer()
+    signal.signal(signal.SIGINT, server.signal_handler)
     server.run()
 
 if __name__ == "__main__":
